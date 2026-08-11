@@ -1,0 +1,19 @@
+# Ignore generated model files and large assets
+models/
+# Ignore download and quantization scripts
+download_model.py
+quantize.py
+# Ignore test suites and related files
+test_suite/
+# Ignore logs and runtime data
+logs/
+# Ignore Python cache directories and files
+__pycache__/
+*.pyc
+# Ignore IDE/editor settings
+.idea/
+.vscode/
+# Optional: ignore any other large data files
+*.h5
+*.ckpt
+*.pt
