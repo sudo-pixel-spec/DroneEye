@@ -1,5 +1,3 @@
-
-
 import math
 import numpy as np
 
@@ -43,7 +41,6 @@ class CentroidTracker:
         else:
             object_ids = list(self.objects.keys())
             object_centroids = [obj.center for obj in self.objects.values()]
-
 
             D = np.linalg.norm(np.array(object_centroids)[:, np.newaxis] - input_centroids, axis=2)
             rows = D.min(axis=1).argsort()
@@ -98,7 +95,6 @@ class CentroidTracker:
         if active_track_id and active_track_id in self.objects:
             active_obj = self.objects[active_track_id]
         else:
-
             target_objs = [obj for obj in self.objects.values() if getattr(obj, "is_target", False)]
             if len(target_objs) > 0:
                 active_obj = target_objs[0]

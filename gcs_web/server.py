@@ -14,7 +14,6 @@ from gcs.telemetry_streamer import get_current_frame_jpeg, get_current_telemetry
 logger = logging.getLogger(__name__)
 
 def generate_mjpeg_stream():
-
     last_sent = None
     while True:
         jpeg_bytes = get_current_frame_jpeg()
@@ -22,14 +21,14 @@ def generate_mjpeg_stream():
             last_sent = jpeg_bytes
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n'
-                   b'Content-Length: ' + str(len(jpeg_bytes)).encode('utf-8') + b'\r\n\r\n' +
+                   b'Content-Length: ' + str(len(jpeg_bytes)).encode('utf-8') + b'\r\n\r\n' + 
                    jpeg_bytes + b'\r\n')
         time.sleep(0.005)
 
 def create_app(mission_engine=None):
     template_folder = os.path.join(BASE_DIR, "gcs_web", "templates")
     app = Flask(__name__, template_folder=template_folder)
-
+    
     @app.route("/")
     def index():
         return render_template("index.html")

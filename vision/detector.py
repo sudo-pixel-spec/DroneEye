@@ -1,5 +1,3 @@
-
-
 import os
 import sys
 import time
@@ -35,12 +33,12 @@ class ObjectDetector:
         self.nms_thresh = self.config.get("nms_threshold", 0.45)
         self.input_size = self.config.get("input_size", (320, 320))
         self.onnx_threads = self.config.get("onnx_threads", 2)
-
+        
         self.backend = "synthetic"
         self.session = None
         self.input_name = None
         self.output_names = None
-
+        
         self.text_reader = TextReader()
         self._init_backend()
 
@@ -60,7 +58,7 @@ class ObjectDetector:
                 opts.inter_op_num_threads = 1
                 opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
                 opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-
+                
                 self.session = ort.InferenceSession(model_path, opts, providers=["CPUExecutionProvider"])
                 self.input_name = self.session.get_inputs()[0].name
                 self.output_names = [o.name for o in self.session.get_outputs()]
@@ -80,7 +78,6 @@ class ObjectDetector:
         h, w = frame.shape[:2]
         tf_str = str(target_filter).lower().strip() if target_filter else None
 
-
         current_conf_thresh = self.default_conf_thresh
         if tf_str and any(k in tf_str for k in ["book", "pen", "pencil", "phone", "cup", "keyboard", "mouse", "scissors", "bag"]):
             current_conf_thresh = 0.18
@@ -90,14 +87,12 @@ class ObjectDetector:
         else:
             raw_detections = self._detect_synthetic(frame, w, h)
 
-
         if tf_str and any(k in tf_str for k in ["pen", "pencil", "marker", "stylus", "notebook", "printer", "box"]):
             geom_detections = self._detect_geometric_objects(frame, w, h, target_name=tf_str)
             raw_detections.extend(geom_detections)
 
         if len(raw_detections) == 0:
             return []
-
 
         if tf_str:
             class_filtered = []
@@ -117,12 +112,10 @@ class ObjectDetector:
             lbl_lower = d["label"].lower()
             bx, by, bw, bh = d["box"]
 
-
             color_match = True
             if color_filter:
                 crop = frame[max(0, by):min(h, by+bh), max(0, bx):min(w, bx+bw)]
                 color_match = (crop.size > 0 and self._check_color_match(crop, str(color_filter).lower()))
-
 
             ocr_match = True
             if text_filter:
@@ -151,10 +144,8 @@ class ObjectDetector:
         return results
 
     def _detect_geometric_objects(self, frame, img_w, img_h, target_name="pen"):
-
         results = []
         try:
-
             small_f = cv2.resize(frame, (320, 240), interpolation=cv2.INTER_NEAREST)
             scale_x = img_w / 320.0
             scale_y = img_h / 240.0
@@ -162,12 +153,12 @@ class ObjectDetector:
             gray = cv2.cvtColor(small_f, cv2.COLOR_BGR2GRAY)
             blur = cv2.GaussianBlur(gray, (5, 5), 0)
             edges = cv2.Canny(blur, 60, 140)
-
+            
             contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
+            
             for cnt in contours:
                 area = cv2.contourArea(cnt)
-
+                
                 if any(k in target_name for k in ["pen", "pencil", "marker", "stylus"]):
                     if 20 < area < 1500:
                         rect = cv2.minAreaRect(cnt)
@@ -175,7 +166,7 @@ class ObjectDetector:
                         long_side = max(w_r, h_r)
                         short_side = min(w_r, h_r)
                         aspect = long_side / short_side if short_side > 0 else 1.0
-
+                        
                         if aspect > 2.8 and long_side > 15:
                             x, y, bw, bh = cv2.boundingRect(cnt)
                             results.append({
@@ -263,11 +254,11 @@ class ObjectDetector:
             boxes = []
             confidences = []
             class_ids = []
-
+            
             scores_matrix = predictions[4:, :]
             max_scores = np.max(scores_matrix, axis=0)
             valid_mask = max_scores >= conf_threshold
-
+            
             if not np.any(valid_mask):
                 return []
 
@@ -279,15 +270,15 @@ class ObjectDetector:
                 scores = scores_matrix[:, idx]
                 class_id = int(np.argmax(scores))
                 confidence = float(scores[class_id])
-
+                
                 cx = float(predictions[0, idx]) * scale_x
                 cy = float(predictions[1, idx]) * scale_y
                 bw = float(predictions[2, idx]) * scale_x
                 bh = float(predictions[3, idx]) * scale_y
-
+                
                 bx = int(cx - bw / 2.0)
                 by = int(cy - bh / 2.0)
-
+                
                 boxes.append([max(0, bx), max(0, by), int(bw), int(bh)])
                 confidences.append(confidence)
                 class_ids.append(class_id)

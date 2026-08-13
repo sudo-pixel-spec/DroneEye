@@ -1,7 +1,6 @@
 import os
 import sys
 
-
 os.environ["OMP_NUM_THREADS"] = "2"
 os.environ["MKL_NUM_THREADS"] = "2"
 os.environ["OPENBLAS_NUM_THREADS"] = "2"
@@ -14,7 +13,6 @@ import time
 import threading
 import logging
 import cv2
-
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,29 +31,24 @@ from utils import get_system_health
 class MissionEngine:
     def __init__(self):
         logger.info("Initializing Hexacopter Companion Computer Systems...")
-
-
+        
         self.camera = CameraStream(CAMERA_CONFIG)
         self.detector = ObjectDetector(VISION_CONFIG)
         self.tracker = CentroidTracker(max_disappeared=15, max_distance=80.0)
         self.scanner = EnvironmentScanner(VISION_CONFIG)
 
-
         self.drone = MavlinkController(FLIGHT_CONFIG)
-
 
         self.command_parser = CommandParser(wake_word=GCS_CONFIG.get("wake_word", "jarvis"))
         self.streamer = TelemetryStreamer(host=GCS_CONFIG["host"], port=GCS_CONFIG["video_port"])
         self.voice_engine = VoiceEngine(wake_word=GCS_CONFIG.get("wake_word", "jarvis"), command_callback=self.on_voice_command)
-
 
         self.mode = "STANDBY"
         self.search_target = None
         self.search_color = None
         self.search_text = None
         self.active_track_id = None
-
-
+        
         self.latest_detections = []
         self.latest_scan_result = {"water_coverage_percent": 0.0, "overlay": None, "terrain_summary": "unknown"}
         self.inference_latency_ms = 0.0
@@ -73,15 +66,12 @@ class MissionEngine:
         self.voice_engine.start()
 
         self.running = True
-
-
+        
         self.async_vision_thread = threading.Thread(target=self._async_vision_worker, daemon=True)
         self.async_vision_thread.start()
 
-
         self.loop_thread = threading.Thread(target=self._main_processing_loop, daemon=True)
         self.loop_thread.start()
-
 
         logger.info(f"Starting GCS Web Dashboard on http://{GCS_CONFIG['host']}:{GCS_CONFIG['web_port']}...")
         run_web_server(mission_engine=self, host=GCS_CONFIG["host"], port=GCS_CONFIG["web_port"])
@@ -100,15 +90,13 @@ class MissionEngine:
                 continue
 
             t0 = time.time()
-
-
+            
             detections = self.detector.detect(
-                frame,
-                target_filter=self.search_target,
+                frame, 
+                target_filter=self.search_target, 
                 color_filter=self.search_color,
                 text_filter=self.search_text
             )
-
 
             scan_res = {"water_coverage_percent": 0.0, "overlay": None, "terrain_summary": "standby"}
             if self.mode == "SCAN_GEO":
@@ -127,23 +115,18 @@ class MissionEngine:
                 time.sleep(sleep_t)
 
     def _draw_hud_corners(self, frame, x, y, bw, bh, color, length=16, thickness=3):
-
-
         cv2.line(frame, (x, y), (x + length, y), color, thickness)
         cv2.line(frame, (x, y), (x, y + length), color, thickness)
-
         cv2.line(frame, (x + bw, y), (x + bw - length, y), color, thickness)
         cv2.line(frame, (x + bw, y), (x + bw, y + length), color, thickness)
-
         cv2.line(frame, (x, y + bh), (x + length, y + bh), color, thickness)
         cv2.line(frame, (x, y + bh), (x, y + bh - length), color, thickness)
-
         cv2.line(frame, (x + bw, y + bh), (x + bw - length, y + bh), color, thickness)
         cv2.line(frame, (x + bw, y + bh), (x + bw, y + bh - length), color, thickness)
 
     def _main_processing_loop(self):
         logger.info("Main 30 FPS video streaming & flight control loop operational.")
-
+        
         while self.running:
             start_t = time.time()
             frame = self.camera.read()
@@ -155,58 +138,45 @@ class MissionEngine:
             h, w = frame.shape[:2]
             processed_frame = frame.copy()
 
-
             with self.vision_lock:
                 detections = list(self.latest_detections)
                 scan_result = dict(self.latest_scan_result)
                 inf_latency = self.inference_latency_ms
 
-
             if self.mode == "SCAN_GEO" and scan_result.get("overlay") is not None:
                 processed_frame = scan_result["overlay"]
 
-
             tracked_objects = self.tracker.update(detections)
-
-
-
-
 
             for obj in tracked_objects:
                 x, y, bw, bh = obj.box
                 cx, cy = obj.center
-
-
+                
                 is_explicit_locked = getattr(obj, "is_target", False) or (self.active_track_id is not None and self.active_track_id == obj.track_id)
 
                 if is_explicit_locked:
-
                     color = (0, 0, 255)
                     cv2.rectangle(processed_frame, (x, y), (x + bw, y + bh), color, 2)
                     self._draw_hud_corners(processed_frame, x, y, bw, bh, color, length=16, thickness=3)
-
-
+                    
                     cv2.circle(processed_frame, (cx, cy), 5, (0, 0, 255), -1)
                     cv2.drawMarker(processed_frame, (cx, cy), (0, 255, 255), cv2.MARKER_CROSS, 14, 2)
-
-                    label_str = f"LOCKED
+                    
+                    label_str = f"LOCKED #{obj.track_id}: {obj.label} ({obj.confidence:.2f})"
                     (tw, th), _ = cv2.getTextSize(label_str, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
                     cv2.rectangle(processed_frame, (x, max(0, y - th - 8)), (x + tw + 6, max(th + 8, y)), (0, 0, 255), -1)
                     cv2.putText(processed_frame, label_str, (x + 3, max(th + 3, y - 4)),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
                 else:
-
                     color = (0, 255, 0)
                     cv2.rectangle(processed_frame, (x, y), (x + bw, y + bh), color, 1)
-                    label_str = f"
+                    label_str = f"#{obj.track_id}: {obj.label} ({obj.confidence:.2f})"
                     cv2.putText(processed_frame, label_str, (x, max(15, y - 6)),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.42, color, 1)
-
 
             err_x, err_y, dist_px, active_obj = self.tracker.calculate_tracking_error(
                 self.active_track_id, frame_width=w, frame_height=h
             )
-
 
             if active_obj and (getattr(active_obj, "is_target", False) or self.active_track_id is not None):
                 cv2.line(processed_frame, (w // 2, h // 2), active_obj.center, (0, 255, 255), 2)
@@ -215,9 +185,7 @@ class MissionEngine:
                 if self.mode in ["SEARCH", "TRACK"] and self.drone.state["armed"]:
                     self.drone.track_target_offset(err_x, err_y)
 
-
             health = get_system_health()
-
 
             self.streamer.update_frame(processed_frame)
 
@@ -227,21 +195,24 @@ class MissionEngine:
 
             speed_xy = (self.drone.state["vx"]**2 + self.drone.state["vy"]**2)**0.5
             self.streamer.update_telemetry({
-
                 "mode": self.drone.state["mode"],
                 "armed": self.drone.state["armed"],
                 "lat": self.drone.state["lat"],
                 "lon": self.drone.state["lon"],
                 "alt": self.drone.state["alt"],
                 "heading": self.drone.state["heading"],
+                "gps_fix": self.drone.state.get("gps_fix", 0),
+                "satellites": self.drone.state.get("satellites_visible", 0),
+                "target_gps_lat": self.drone.state.get("target_gps_lat"),
+                "target_gps_lon": self.drone.state.get("target_gps_lon"),
                 "speed": round(speed_xy, 1),
                 "battery": self.drone.state["battery_pct"],
                 "manual_override": self.drone.state["manual_override"],
+                "gcs_connected": self.drone.state.get("gcs_connected", True),
                 "active_target": active_obj.label if active_obj else "NONE",
                 "search_target": target_display,
                 "water_coverage": scan_result.get("water_coverage_percent", 0.0),
-
-
+                
                 "cpu_temp": health["cpu_temp"],
                 "cpu_usage": health["cpu_usage"],
                 "ram_used_mb": health["ram_used_mb"],
@@ -253,24 +224,27 @@ class MissionEngine:
                 "detector_backend": self.detector.backend
             })
 
-
             elapsed = time.time() - start_t
             sleep_t = (1.0 / 30.0) - elapsed
             if sleep_t > 0:
                 time.sleep(sleep_t)
 
     def dispatch_command_text(self, text):
+        self.drone.touch_gcs_heartbeat()
         cmd = self.command_parser.parse_command(text)
         return self.execute_mission_command(cmd)
 
     def on_voice_command(self, cmd):
+        self.drone.touch_gcs_heartbeat()
         self.execute_mission_command(cmd)
 
     def dispatch_voice_phrase(self, phrase):
+        self.drone.touch_gcs_heartbeat()
         cmd = self.voice_engine.process_voice_phrase(phrase)
         return cmd
 
     def execute_mission_command(self, cmd):
+        self.drone.touch_gcs_heartbeat()
         action = cmd.get("action")
         params = cmd.get("params", {})
         logger.info(f"Executing Mission Directives: Action={action}, Params={params}")
@@ -295,12 +269,12 @@ class MissionEngine:
             color_raw = params.get("color", None)
             text_raw = params.get("text_query", None)
             target_id = params.get("target_id", None)
-
+            
             self.search_target = target_raw.lower() if target_raw else None
             self.search_color = color_raw.lower() if color_raw else None
             self.search_text = text_raw.lower() if text_raw else None
             self.active_track_id = int(target_id) if str(target_id).isdigit() else None
-
+            
             self.mode = action
             logger.info(f"Mission Mode [{action}]: target=[{self.search_target}], color=[{self.search_color}], text_query=[{self.search_text}], track_id=[{self.active_track_id}]")
         elif action == "SCAN_GEO":

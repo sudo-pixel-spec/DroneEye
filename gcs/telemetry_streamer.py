@@ -48,7 +48,7 @@ class TelemetryStreamer:
         global _current_jpeg_bytes
         if frame is None:
             return
-
+        
         try:
             with _stream_lock:
                 q_mode = _active_quality_mode

@@ -281,7 +281,7 @@
         </div>
 
         <div class="sidebar">
-            
+            <!-- Stream Quality Selector Panel -->
             <div class="panel">
                 <div class="panel-title">
                     <span>STREAM VIDEO QUALITY</span>
@@ -294,7 +294,7 @@
                 </div>
             </div>
 
-            
+            <!-- Hardware Health & Diagnostics Panel -->
             <div class="panel">
                 <div class="panel-title">
                     <span>SYSTEM HEALTH & DIAGNOSTICS</span>
@@ -322,7 +322,7 @@
                 </div>
             </div>
 
-            
+            <!-- Flight Telemetry Panel -->
             <div class="panel">
                 <div class="panel-title">FLIGHT & MISSION TELEMETRY</div>
                 <div class="telemetry-grid">
@@ -342,18 +342,26 @@
                         <div class="metric-label">HEADING</div>
                         <div class="metric-val" id="val-head">0.0°</div>
                     </div>
+                    <div class="metric-card">
+                        <div class="metric-label">GPS FIX / SATS</div>
+                        <div class="metric-val" id="val-gps" style="color: var(--accent-cyan);">3D (14 SATS)</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">TARGET ESTIMATED GPS</div>
+                        <div class="metric-val" id="val-target-gps" style="font-size:0.75rem; color: var(--accent-green);">NO TARGET</div>
+                    </div>
                 </div>
             </div>
 
-            
+            <!-- Command Terminal Panel -->
             <div class="panel">
                 <div class="panel-title">MISSION PLAN & COMMAND CONSOLE</div>
                 <div class="cmd-input-group">
-                    <input type="text" id="cmd-input" placeholder="Dynamic command e.g. SEARCH bottles...">
+                    <input type="text" id="cmd-input" placeholder="">
                     <button onclick="sendCommand()">SEND</button>
                 </div>
                 <div class="cmd-input-group">
-                    <input type="text" id="voice-input" placeholder="Voice: 'Jarvis, track person with Monday shirt'">
+                    <input type="text" id="voice-input" placeholder="'">
                     <button class="btn-green" onclick="sendVoiceCommand()">SPEAK</button>
                 </div>
 
@@ -369,7 +377,7 @@
                 </div>
             </div>
 
-            
+            <!-- System Log -->
             <div class="panel">
                 <div class="panel-title">SYSTEM LOGS</div>
                 <div class="log-box" id="log-box">
@@ -400,6 +408,7 @@
                 document.getElementById("quality-badge").innerText = qMode.toUpperCase();
                 document.getElementById("hud-fps").innerText = `STREAM: ${qMode.toUpperCase()}`;
                 
+                // Highlight active quality button
                 ["low", "balanced", "hd"].forEach(m => {
                     const btn = document.getElementById(`qbtn-${m}`);
                     if (m === qMode) {
@@ -455,6 +464,7 @@
             .catch(err => appendLog(`Error: ${err}`));
         }
 
+        // Poll Telemetry & Hardware Health
         setInterval(() => {
             fetch('/telemetry')
             .then(res => res.json())
@@ -466,6 +476,18 @@
                 if (data.heading !== undefined) document.getElementById("val-head").innerText = `${data.heading.toFixed(0)}°`;
                 if (data.search_target) document.getElementById("hud-target").innerText = `SEARCH: ${data.search_target.toUpperCase()}`;
                 
+                if (data.gps_fix !== undefined) {
+                    const fixStr = data.gps_fix >= 3 ? "3D FIX" : (data.gps_fix === 2 ? "2D FIX" : "NO FIX");
+                    const sats = data.satellites || 0;
+                    document.getElementById("val-gps").innerText = `${fixStr} (${sats} SATS)`;
+                }
+
+                if (data.target_gps_lat && data.target_gps_lon) {
+                    document.getElementById("val-target-gps").innerText = `${data.target_gps_lat.toFixed(5)}, ${data.target_gps_lon.toFixed(5)}`;
+                } else {
+                    document.getElementById("val-target-gps").innerText = "NO TARGET";
+                }
+
                 if (data.cpu_temp !== undefined) {
                     const tempElem = document.getElementById("val-temp");
                     tempElem.innerText = `${data.cpu_temp.toFixed(1)}°C`;

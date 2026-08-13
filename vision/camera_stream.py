@@ -1,5 +1,3 @@
-
-
 import time
 import threading
 import logging
@@ -16,36 +14,43 @@ class CameraStream:
         self.height = self.config.get("height", 480)
         self.fps = self.config.get("fps", 30)
         self.use_picamera2 = self.config.get("use_picamera2", True)
-
+        
         self.frame = None
         self.running = False
         self.lock = threading.Lock()
         self.thread = None
-
+        
         self.cap = None
         self.picam2 = None
         self.mode = "simulated"
-
+        
         self._init_camera()
 
     def _init_camera(self):
-
         if self.use_picamera2:
             try:
                 from picamera2 import Picamera2
-                logger.info("Initializing Picamera2 driver for NoIR Pi Camera Module 3...")
+                logger.info("Initializing Picamera2 libcamera driver for NoIR Pi Camera Module 3 (IMX708)...")
                 self.picam2 = Picamera2()
                 config = self.picam2.create_preview_configuration(
                     main={"size": (self.width, self.height), "format": "RGB888"}
                 )
                 self.picam2.configure(config)
+                
+                if self.config.get("enable_autofocus", True):
+                    try:
+                        from libcamera import controls
+                        self.picam2.set_controls({"AfMode": controls.AfModeEnum.Continuous})
+                        logger.info("IMX708 Motor-Driven Auto-Focus engaged [AfMode: Continuous].")
+                    except Exception as af_err:
+                        logger.debug(f"Auto-Focus control set failed (non-AF hardware): {af_err}")
+
                 self.picam2.start()
                 self.mode = "picamera2"
-                logger.info("Picamera2 started successfully in RGB888 -> BGR true-color mode.")
+                logger.info(f"Picamera2 started successfully in 720p HD mode ({self.width}x{self.height}).")
                 return
             except Exception as e:
                 logger.warning(f"Picamera2 initialization failed: {e}. Falling back to V4L2 OpenCV.")
-
 
         try:
             device_idx = self.config.get("v4l2_device", 0)
@@ -58,11 +63,10 @@ class CameraStream:
                 ret, frame = self.cap.read()
                 if ret and frame is not None:
                     self.mode = "v4l2"
-                    logger.info(f"OpenCV V4L2 Camera initialized on /dev/video{device_idx}")
+                    logger.info(f"OpenCV V4L2 Camera initialized on /dev/video{device_idx} ({self.width}x{self.height})")
                     return
         except Exception as e:
             logger.warning(f"V4L2 VideoCapture failed: {e}")
-
 
         logger.info("Operating in Synthetic Test Camera Mode (Simulated Sky-High Flight Feed).")
         self.mode = "simulated"
@@ -84,7 +88,7 @@ class CameraStream:
             if frame is not None:
                 with self.lock:
                     self.frame = frame
-
+            
             elapsed = time.time() - start_time
             sleep_time = target_delay - elapsed
             if sleep_time > 0:
@@ -95,16 +99,20 @@ class CameraStream:
             try:
                 array = self.picam2.capture_array()
                 if array is not None:
-
                     if len(array.shape) == 3:
                         if array.shape[2] == 4:
-                            return cv2.cvtColor(array, cv2.COLOR_RGBA2BGR)
-                        elif array.shape[2] == 3:
-                            return cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
-                    return array
+                            bgr = array[:, :, :3].copy()
+                        else:
+                            bgr = array.copy()
+                    else:
+                        bgr = array.copy()
+                    
+                    if self.config.get("swap_bgr", False):
+                        bgr = cv2.cvtColor(bgr, cv2.COLOR_RGB2BGR)
+                    return bgr
             except Exception as e:
                 logger.error(f"Picamera2 capture error: {e}")
-
+        
         elif self.mode == "v4l2":
             try:
                 ret, frame = self.cap.read()
@@ -118,7 +126,7 @@ class CameraStream:
     def _generate_simulated_frame(self):
         self._sim_t += 0.05
         frame = np.full((self.height, self.width, 3), (45, 90, 45), dtype=np.uint8)
-
+        
         cv2.ellipse(frame, (int(self.width * 0.75), int(self.height * 0.35)),
                     (110, 70), 30, 0, 360, (180, 110, 30), -1)
         cv2.putText(frame, "LAKE (WATER BODY)", (int(self.width * 0.65), int(self.height * 0.2)),

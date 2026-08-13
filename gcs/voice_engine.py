@@ -13,7 +13,7 @@ class VoiceEngine:
         self.running = False
         self.thread = None
         self.backend = "simulated"
-
+        
         self._init_backend()
 
     def _init_backend(self):
@@ -52,7 +52,6 @@ class VoiceEngine:
                 time.sleep(1.0)
 
     def process_voice_phrase(self, phrase_text):
-
         logger.info(f"Processing Voice Command Phrase: '{phrase_text}'")
         cmd = self.command_parser.parse_command(phrase_text)
         if cmd["action"] != "UNKNOWN":
