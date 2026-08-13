@@ -7,14 +7,14 @@ class TrackedObject:
         self.label = label
         self.confidence = confidence
         self.box = box
-        self.center = center
+        self.center = center 
         self.is_target = is_target
         self.disappeared = 0
 
 class CentroidTracker:
     def __init__(self, max_disappeared=15, max_distance=80.0):
         self.next_object_id = 1
-        self.objects = {}
+        self.objects = {} 
         self.max_disappeared = max_disappeared
         self.max_distance = max_distance
 

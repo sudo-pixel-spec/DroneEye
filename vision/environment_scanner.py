@@ -1,3 +1,4 @@
+import time
 import cv2
 import numpy as np
 import logging
@@ -11,6 +12,9 @@ class EnvironmentScanner:
         self.grid_rows = self.config.get("terrain_grid_rows", 12)
         self.grid_cols = self.config.get("terrain_grid_cols", 12)
         self.compute_size = (160, 120)
+        self._cached_result = None
+        self._last_scan_time = 0.0
+        self._scan_interval = 0.12 
 
     def _detect_horizon_line(self, gray_small):
         h, w = gray_small.shape[:2]
@@ -39,6 +43,12 @@ class EnvironmentScanner:
                 "overlay": frame
             }
 
+        now = time.time()
+        if self._cached_result is not None and getattr(self, "_cached_rendered_overlay", None) is not None and (now - self._last_scan_time) < self._scan_interval:
+            res = dict(self._cached_result)
+            res["overlay"] = self._cached_rendered_overlay
+            return res
+
         h, w = frame.shape[:2]
         total_pixels = h * w
         overlay = frame.copy()
@@ -51,7 +61,7 @@ class EnvironmentScanner:
         horizon_y_full = int((horizon_y_small / float(ch)) * h)
 
         lab_small = cv2.cvtColor(small, cv2.COLOR_BGR2LAB)
-        lab_a = lab_small[:, :, 1] 
+        lab_a = lab_small[:, :, 1]
         lab_b = lab_small[:, :, 2] 
 
         hsv_small = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
@@ -158,7 +168,7 @@ class EnvironmentScanner:
                 if dom_class == "WATER":
                     color = (255, 140, 0)
                 elif dom_class == "FOREST":
-                    color = (0, 180, 0) 
+                    color = (0, 180, 0)
                 elif dom_class == "CROPS":
                     color = (50, 240, 50)
                 elif dom_class == "URBAN":
@@ -202,7 +212,7 @@ class EnvironmentScanner:
         cv2.putText(overlay, hud_str1, (10, h - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
         cv2.putText(overlay, hud_str2, (10, h - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 255, 255), 1)
 
-        return {
+        result = {
             "water_bodies": water_bodies,
             "forest_patches": forest_patches,
             "water_coverage_percent": water_pct,
@@ -215,3 +225,8 @@ class EnvironmentScanner:
             "grid_matrix": grid_matrix,
             "overlay": overlay
         }
+
+        self._cached_rendered_overlay = overlay.copy()
+        self._cached_result = result
+        self._last_scan_time = now
+        return result

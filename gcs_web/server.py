@@ -23,7 +23,7 @@ def generate_mjpeg_stream():
                    b'Content-Type: image/jpeg\r\n'
                    b'Content-Length: ' + str(len(jpeg_bytes)).encode('utf-8') + b'\r\n\r\n' + 
                    jpeg_bytes + b'\r\n')
-        time.sleep(0.005)
+        time.sleep(0.033)
 
 def create_app(mission_engine=None):
     template_folder = os.path.join(BASE_DIR, "gcs_web", "templates")

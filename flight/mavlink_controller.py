@@ -83,7 +83,6 @@ class MavlinkController:
                 source_system=255,
                 source_component=190
             )
-
             hb = self.master.wait_heartbeat(timeout=2.5)
             if hb:
                 self.connected = True
@@ -104,7 +103,7 @@ class MavlinkController:
             self.state["lat"] = 37.774929
             self.state["lon"] = -122.419416
             self.state["alt"] = 0.0
-            self.state["gps_fix"] = 3
+            self.state["gps_fix"] = 3 
             self.state["satellites_visible"] = 14
             return True
         return False
@@ -206,7 +205,7 @@ class MavlinkController:
                 elif msg_type == "GLOBAL_POSITION_INT":
                     self.state["lat"] = msg.lat / 1e7
                     self.state["lon"] = msg.lon / 1e7
-                    self.state["alt"] = msg.relative_alt / 1000.0
+                    self.state["alt"] = msg.relative_alt / 1000.0 # mm to meters
                     self.state["heading"] = msg.hdg / 100.0
 
                 elif msg_type == "GPS_RAW_INT":
@@ -393,7 +392,7 @@ class MavlinkController:
         alt = max(1.0, self.state["alt"])
         heading_rad = math.radians(self.state["heading"])
 
-        offset_forward = -err_y * alt * 0.75
+        offset_forward = -err_y * alt * 0.75 
         offset_right = err_x * alt * 0.75
 
         dn = offset_forward * math.cos(heading_rad) - offset_right * math.sin(heading_rad)
@@ -411,6 +410,4 @@ class MavlinkController:
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=1.0)
         logger.info("Mavlink controller stopped.")
-
-
 

@@ -24,9 +24,9 @@ CAMERA_CONFIG = {
     "height": 720,
     "fps": 30,
     "use_picamera2": True,
-    "v4l2_device": 0,
+    "v4l2_device": 0, 
     "enable_autofocus": True,
-    "swap_bgr": False,
+    "swap_bgr": False, 
     "flip_v": False,
     "flip_h": False
 }
@@ -34,35 +34,34 @@ CAMERA_CONFIG = {
 VISION_CONFIG = {
     "model_name": "yolo11n_int8.onnx",
     "fallback_model_name": "yolo11n.onnx",
-    "segmentation_model": "terrain_segmentation.onnx",
+    "segmentation_model": "terrain_segmentation.onnx", 
     "segmentation_input_size": (256, 256),
     "enable_ai_segmentation": True,
     "confidence_threshold": 0.35,
     "nms_threshold": 0.45,
     "input_size": (320, 320),
-    "max_inference_fps": 12.0,
+    "max_inference_fps": 12.0, 
     "onnx_threads": 2
 }
 
 FLIGHT_CONFIG = {
-    "connection_string": "/dev/ttyAMA0",
+    "connection_string": "/dev/ttyAMA0", 
     "baud_rate": 57600,
-    "sim_mode": True,
+    "sim_mode": True,      
     "target_system": 1,
     "target_component": 1,
-    "default_altitude": 10.0,
-    "max_velocity_xy": 2.5,
-    "max_accel_xy": 1.5,
-    "pid_kp": 0.005,
+    "default_altitude": 10.0,   
+    "max_velocity_xy": 2.5, 
+    "max_accel_xy": 1.5,   
+    "pid_kp": 0.005,    
     "pid_ki": 0.0001,
     "pid_kd": 0.001,
-    "pid_yaw_kp": 0.05,
-    "rc_override_channel": 5,
+    "pid_yaw_kp": 0.05, 
+    "rc_override_channel": 5, 
     "mav_frame": "MAV_FRAME_BODY_NED",
     "companion_heartbeat_interval": 1.0,
-    "gcs_timeout_seconds": 5.0,
-    "gps_stream_rate_hz": 10
-}
+    "gcs_timeout_seconds": 5.0,     
+    "gps_stream_rate_hz": 10   
 
 QUALITY_PROFILES = {
     "low": {"width": 360, "height": 240, "quality": 40, "label": "LOW (360p / 40%)"},
@@ -74,7 +73,7 @@ GCS_CONFIG = {
     "host": "0.0.0.0",
     "web_port": 5000,
     "video_port": 8080,
-    "wake_word": "jarvis",
+    "wake_word": "jarvis", 
     "stream_fps": 30,
-    "default_quality_mode": "balanced"
+    "default_quality_mode": "balanced" 
 }

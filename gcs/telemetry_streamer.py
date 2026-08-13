@@ -39,38 +39,64 @@ class TelemetryStreamer:
         self.host = host or GCS_CONFIG.get("host", "0.0.0.0")
         self.port = port or GCS_CONFIG.get("video_port", 8080)
         self.running = False
+        self._latest_raw_frame = None
+        self._frame_lock = threading.Lock()
+        self._encoder_thread = None
 
     def start(self):
         self.running = True
-        logger.info("Video & Telemetry Engine initialized with Dynamic Quality Support.")
+        self._encoder_thread = threading.Thread(target=self._async_encoding_loop, daemon=True)
+        self._encoder_thread.start()
+        logger.info("Video & Telemetry Engine initialized with Async Background JPEG Encoding.")
 
     def update_frame(self, frame):
-        global _current_jpeg_bytes
         if frame is None:
             return
+        with self._frame_lock:
+            self._latest_raw_frame = frame
+
+    def _async_encoding_loop(self):
+        global _current_jpeg_bytes
+        target_interval = 1.0 / 25.0
         
-        try:
-            with _stream_lock:
-                q_mode = _active_quality_mode
+        while self.running:
+            start_t = time.time()
+            frame_to_encode = None
 
-            profile = QUALITY_PROFILES.get(q_mode, QUALITY_PROFILES["balanced"])
-            target_w = profile["width"]
-            target_h = profile["height"]
-            target_q = profile["quality"]
+            with self._frame_lock:
+                if self._latest_raw_frame is not None:
+                    frame_to_encode = self._latest_raw_frame
+                    self._latest_raw_frame = None
 
-            h, w = frame.shape[:2]
-            if w != target_w or h != target_h:
-                frame_out = cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_NEAREST if q_mode == "low" else cv2.INTER_LINEAR)
-            else:
-                frame_out = frame
+            if frame_to_encode is not None:
+                try:
+                    with _stream_lock:
+                        q_mode = _active_quality_mode
 
-            ret, jpeg = cv2.imencode(".jpg", frame_out, [int(cv2.IMWRITE_JPEG_QUALITY), target_q])
-            if ret:
-                jpeg_data = jpeg.tobytes()
-                with _stream_lock:
-                    _current_jpeg_bytes = jpeg_data
-        except Exception as e:
-            logger.error(f"Error encoding frame: {e}")
+                    profile = QUALITY_PROFILES.get(q_mode, QUALITY_PROFILES["balanced"])
+                    target_w = profile["width"]
+                    target_h = profile["height"]
+                    target_q = profile["quality"]
+
+                    h, w = frame_to_encode.shape[:2]
+                    if w != target_w or h != target_h:
+                        frame_out = cv2.resize(frame_to_encode, (target_w, target_h),
+                                               interpolation=cv2.INTER_NEAREST if q_mode == "low" else cv2.INTER_LINEAR)
+                    else:
+                        frame_out = frame_to_encode
+
+                    ret, jpeg = cv2.imencode(".jpg", frame_out, [int(cv2.IMWRITE_JPEG_QUALITY), target_q])
+                    if ret:
+                        jpeg_bytes = jpeg.tobytes()
+                        with _stream_lock:
+                            _current_jpeg_bytes = jpeg_bytes
+                except Exception as e:
+                    logger.error(f"Async JPEG encoder error: {e}")
+
+            elapsed = time.time() - start_t
+            sleep_time = target_interval - elapsed
+            if sleep_time > 0:
+                time.sleep(sleep_time)
 
     def update_telemetry(self, telemetry_dict):
         global _current_telemetry_data
@@ -80,4 +106,6 @@ class TelemetryStreamer:
 
     def stop(self):
         self.running = False
+        if self._encoder_thread and self._encoder_thread.is_alive():
+            self._encoder_thread.join(timeout=1.0)
         logger.info("Telemetry streamer stopped.")

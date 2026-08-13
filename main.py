@@ -43,7 +43,7 @@ class MissionEngine:
         self.streamer = TelemetryStreamer(host=GCS_CONFIG["host"], port=GCS_CONFIG["video_port"])
         self.voice_engine = VoiceEngine(wake_word=GCS_CONFIG.get("wake_word", "jarvis"), command_callback=self.on_voice_command)
 
-        self.mode = "STANDBY"
+        self.mode = "STANDBY" 
         self.search_target = None
         self.search_color = None
         self.search_text = None
@@ -136,7 +136,7 @@ class MissionEngine:
                 continue
 
             h, w = frame.shape[:2]
-            processed_frame = frame.copy()
+            processed_frame = frame 
 
             with self.vision_lock:
                 detections = list(self.latest_detections)
@@ -168,7 +168,7 @@ class MissionEngine:
                     cv2.putText(processed_frame, label_str, (x + 3, max(th + 3, y - 4)),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
                 else:
-                    color = (0, 255, 0)
+                    color = (0, 255, 0) 
                     cv2.rectangle(processed_frame, (x, y), (x + bw, y + bh), color, 1)
                     label_str = f"#{obj.track_id}: {obj.label} ({obj.confidence:.2f})"
                     cv2.putText(processed_frame, label_str, (x, max(15, y - 6)),

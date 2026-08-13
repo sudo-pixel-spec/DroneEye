@@ -1,8 +1,3 @@
-"""
-Raspberry Pi 5 Hardware Health & Diagnostics Collector
-Monitors CPU Temperature, CPU Usage %, RAM Usage, Disk Space, System Load, and Health Status.
-"""
-
 import os
 import sys
 import time
@@ -18,11 +13,6 @@ import psutil
 logger = logging.getLogger(__name__)
 
 def get_cpu_temperature():
-    """
-    Reads CPU temperature from Raspberry Pi 5 hardware thermal zone.
-    Returns temperature in degrees Celsius (float).
-    """
-    # 1. Try reading directly from sysfs thermal zone 0
     try:
         thermal_file = "/sys/class/thermal/thermal_zone0/temp"
         if os.path.exists(thermal_file):
@@ -32,22 +22,17 @@ def get_cpu_temperature():
     except Exception:
         pass
 
-    # 2. Try vcgencmd tool fallback
     try:
         res = subprocess.run(["vcgencmd", "measure_temp"], capture_output=True, text=True, timeout=1.0)
         if res.returncode == 0 and "temp=" in res.stdout:
-            # Output format: temp=45.2'C
             temp_str = res.stdout.strip().split("=")[1].split("'")[0]
             return round(float(temp_str), 1)
     except Exception:
         pass
 
-    return 42.0 # Default fallback if unavailable
+    return 42.0
 
 def get_system_health():
-    """
-    Collects full system health metrics dictionary.
-    """
     cpu_temp = get_cpu_temperature()
     cpu_usage = psutil.cpu_percent(interval=None)
     mem = psutil.virtual_memory()
@@ -58,7 +43,6 @@ def get_system_health():
     except Exception:
         load_avg = [0.0, 0.0, 0.0]
 
-    # Evaluate System Health Status
     if cpu_temp > 80.0 or cpu_usage > 92.0 or mem.percent > 90.0:
         health_status = "CRITICAL / OVERLOAD"
         status_color = "var(--accent-red)"
