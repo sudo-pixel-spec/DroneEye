@@ -1,0 +1,100 @@
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# ========================
+# Virtual Environments
+# ========================
+.venv/
+venv/
+env/
+ENV/
+
+# ========================
+# Models & Large Assets
+# ========================
+# ONNX models (large binaries — download separately)
+models/*.onnx
+models/*.pt
+models/*.tflite
+
+# Vosk voice model (large folder — download separately)
+models/vosk-model*/
+models/*.zip
+
+# Keep models directory tracked (empty placeholder)
+!models/.gitkeep
+
+# ========================
+# Logs & Runtime Output
+# ========================
+logs/
+*.log
+*.log.*
+
+# ========================
+# Environment / Secrets
+# ========================
+.env
+.env.*
+*.secret
+
+# ========================
+# IDE & Editor
+# ========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# ========================
+# OS Files
+# ========================
+Thumbs.db
+.DS_Store
+Desktop.ini
+ehthumbs.db
+
+# ========================
+# Temp / Archives
+# ========================
+*.zip
+*.tar.gz
+*.rar
+*.7z
+tmp/
+temp/
+
+# ========================
+# Test Artifacts
+# ========================
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ========================
+# Diagnostics & Dev Scripts
+# ========================
+# One-off debug/test scripts — not part of the project
+test_nlp.py
+check_mic.py
+test_*.py
+check_*.py
+scratch_*.py
+debug_*.py
+
+CHANGES.txt

@@ -76,5 +76,11 @@ GCS_CONFIG = {
     "video_port": 8080,
     "wake_word": "jarvis",
     "stream_fps": 30,
-    "default_quality_mode": "balanced"
+    "default_quality_mode": "balanced",
+    # --- Offline Voice Recognition (Vosk) ---
+    # Download model: https://alphacephei.com/vosk/models  (vosk-model-small-en-us-0.15 ~40MB)
+    # Place extracted folder inside DroneEye/models/
+    "vosk_model_path": "vosk-model-small-en-us-0.15",  # relative to MODELS_DIR
+    "vosk_sample_rate": 16000,
+    "voice_device_index": None,  # None = system default mic; set int for specific device
 }

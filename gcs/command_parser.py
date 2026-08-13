@@ -34,11 +34,29 @@ class CommandParser:
         raw_text = text_input.strip()
         clean_text = raw_text.lower()
 
+        # Strip Vosk [unk] tokens (grammar-mode artifact)
+        clean_text = re.sub(r'\[unk\]\s*', '', clean_text).strip()
+
         is_voice = self.wake_word in clean_text
         if is_voice:
             clean_text = clean_text.replace(self.wake_word, "").strip()
 
         clean_text = re.sub(r'^[^\w\s]+', '', clean_text).strip()
+
+        # Strip common voice filler / politeness words at the start
+        clean_text = re.sub(
+            r'^(ok|okay|hey|drone|jarvis|computer|now|just|only|please|go|go and|'
+            r'start|begin|can you|could you|i want you to|i want to|'
+            r'let\'s|lets|try to|try|make it|make sure to)\s+',
+            '', clean_text
+        ).strip()
+
+        # Reject trivially short / stop-word-only phrases
+        _STOP_WORDS = {"the", "a", "an", "that", "this", "it", "ok", "okay",
+                       "yes", "no", "at", "of", "on", "in", "up", "go", "and"}
+        if not clean_text or clean_text in _STOP_WORDS:
+            return {"action": "UNKNOWN", "params": {}, "raw": raw_text,
+                    "source": "voice" if is_voice else "text"}
 
         if any(clean_text == kw or clean_text.startswith(kw) for kw in ["arm", "arm motors", "start motors"]):
             return {"action": "ARM", "params": {}, "raw": raw_text, "source": "voice" if is_voice else "text"}
@@ -59,12 +77,20 @@ class CommandParser:
         if any(kw in clean_text for kw in ["scan_geo", "scan geo", "scan geography", "scan environment", "scan terrain", "scangeo"]):
             return {"action": "SCAN_GEO", "params": {"terrain_type": "all"}, "raw": raw_text, "source": "voice" if is_voice else "text"}
 
-        if clean_text.startswith("track") or clean_text.startswith("follow") or clean_text.startswith("lock"):
+        # Use regex word-boundary search (not startswith) so filler words
+        # before the action keyword still match correctly.
+        _TRACK_RE  = re.compile(r'\b(track|follow|lock on|lock|pursue|chase|keep on)\b')
+        _SEARCH_RE = re.compile(r'\b(search|find|scan for|look for|locate|detect|search for|identify|spot)\b')
+
+        if _TRACK_RE.search(clean_text):
             requested_action = "TRACK"
-            query_body = re.sub(r'^(?:track|follow|lock on|lock)\s+(?:id\s*)?', '', clean_text).strip()
+            query_body = _TRACK_RE.sub('', clean_text, count=1)
+            query_body = re.sub(r'^\s*(id\s*)?', '', query_body).strip()
+            query_body = re.sub(r'^(a|the|an|that|this|one)\s+', '', query_body).strip()
         else:
             requested_action = "SEARCH"
-            query_body = re.sub(r'^(?:search|find|scan for|look for|locate|detect)\s+(?:a|the|specific|any)?\s*', '', clean_text).strip()
+            query_body = _SEARCH_RE.sub('', clean_text, count=1)
+            query_body = re.sub(r'^\s*(for\s+)?(a|the|an|that|specific|any|one)\s+', '', query_body).strip()
 
         if requested_action == "TRACK" and query_body.isdigit():
             return {"action": "TRACK", "params": {"target_id": query_body}, "raw": raw_text, "source": "voice" if is_voice else "text"}
@@ -93,6 +119,14 @@ class CommandParser:
             if any(syn in target_str for syn in synonyms) or base_class in target_str:
                 normalized_target = base_class
                 break
+
+        # Reject results with no useful target for SEARCH/TRACK
+        # (catches Vosk mishears like "at the person" where target would be "at")
+        _STOP_WORDS = {"the", "a", "an", "that", "this", "it", "at", "of",
+                       "on", "in", "up", "and", "lock", "[unk]"}
+        if normalized_target in _STOP_WORDS or not normalized_target:
+            return {"action": "UNKNOWN", "params": {}, "raw": raw_text,
+                    "source": "voice" if is_voice else "text"}
 
         return {
             "action": requested_action,

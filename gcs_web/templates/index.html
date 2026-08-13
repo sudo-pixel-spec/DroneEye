@@ -256,6 +256,76 @@
             color: #00ff88;
             border: 1px solid rgba(255, 255, 255, 0.05);
         }
+        /* --- Voice / Mic Button --- */
+        .mic-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .mic-btn {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-green);
+            background: rgba(0, 255, 136, 0.1);
+            color: var(--accent-green);
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.2s ease;
+            padding: 0;
+        }
+
+        .mic-btn:hover {
+            background: rgba(0, 255, 136, 0.2);
+            box-shadow: 0 0 12px rgba(0, 255, 136, 0.4);
+            transform: translateY(0);
+        }
+
+        .mic-btn.active {
+            background: rgba(255, 51, 102, 0.15);
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+            animation: mic-pulse 1.2s ease-in-out infinite;
+        }
+
+        @keyframes mic-pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(255, 51, 102, 0.5); }
+            60%  { box-shadow: 0 0 0 10px rgba(255, 51, 102, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 51, 102, 0); }
+        }
+
+        .mic-status-label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            flex: 1;
+        }
+
+        .mic-status-label.listening {
+            color: var(--accent-red);
+        }
+
+        .mic-partial {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 0.75rem;
+            color: var(--accent-cyan);
+            min-height: 28px;
+            font-style: italic;
+            margin-top: 4px;
+            display: none;
+        }
+
+        .mic-partial.visible {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -356,13 +426,18 @@
             <!-- Command Terminal Panel -->
             <div class="panel">
                 <div class="panel-title">MISSION PLAN & COMMAND CONSOLE</div>
+
+                <!-- Single unified input: type OR speak, both use same box -->
                 <div class="cmd-input-group">
-                    <input type="text" id="cmd-input" placeholder="">
+                    <input type="text" id="cmd-input" placeholder="Type or speak a command...">
+                    <button class="mic-btn" id="mic-btn" onclick="toggleMic()" title="Toggle mic">🎤</button>
                     <button onclick="sendCommand()">SEND</button>
                 </div>
-                <div class="cmd-input-group">
-                    <input type="text" id="voice-input" placeholder="'">
-                    <button class="btn-green" onclick="sendVoiceCommand()">SPEAK</button>
+
+                <!-- Mic status line (minimal, inline) -->
+                <div style="display:flex; align-items:center; gap:8px; margin-top:5px; min-height:18px;">
+                    <span id="mic-status-label" class="mic-status-label">🔇 Mic idle</span>
+                    <span id="mic-backend" style="font-size:0.65rem; color:var(--text-dim);"></span>
                 </div>
 
                 <div class="quick-actions">
@@ -445,24 +520,114 @@
             .catch(err => appendLog(`Error: ${err}`));
         }
 
-        function sendVoiceCommand() {
-            const input = document.getElementById("voice-input");
-            const text = input.value.trim();
-            if (!text) return;
 
-            appendLog(`Simulated Voice: "${text}"`);
-            fetch('/api/voice_command', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({phrase: text})
-            })
+        // ---------------------------------------------------------------
+        // Microphone toggle + Vosk live polling
+        // ---------------------------------------------------------------
+        let _micListening = false;
+        let _micPollTimer = null;
+
+        function toggleMic() {
+            fetch('/api/voice_toggle', { method: 'POST' })
             .then(res => res.json())
             .then(data => {
-                appendLog(`Voice Action: ${data.message}`);
-                input.value = "";
+                _micListening = data.listening;
+                _applyMicState(_micListening);
+                if (_micListening) {
+                    appendLog('🎤 Mic activated — speak your command...');
+                    _micPollTimer = setInterval(_pollVoiceStatus, 250);
+                } else {
+                    appendLog('🔇 Mic deactivated.');
+                    clearInterval(_micPollTimer);
+                    _micPollTimer = null;
+                    // Clear any partial text left in input
+                    const inp = document.getElementById('cmd-input');
+                    if (inp.dataset.fromMic === '1') { inp.value = ''; inp.dataset.fromMic = '0'; }
+                }
             })
-            .catch(err => appendLog(`Error: ${err}`));
+            .catch(err => appendLog(`Mic toggle error: ${err}`));
         }
+
+        function _applyMicState(active) {
+            const btn  = document.getElementById('mic-btn');
+            const lbl  = document.getElementById('mic-status-label');
+            const inp  = document.getElementById('cmd-input');
+            if (active) {
+                btn.classList.add('active');
+                btn.innerHTML = '⏹';
+                lbl.className = 'mic-status-label listening';
+                lbl.innerText = '🔴 Listening... (click to stop)';
+                inp.style.borderColor = 'var(--accent-red)';
+                inp.style.boxShadow = '0 0 8px rgba(255,51,102,0.35)';
+                inp.placeholder = 'Listening...';
+            } else {
+                btn.classList.remove('active');
+                btn.innerHTML = '🎤';
+                lbl.className = 'mic-status-label';
+                lbl.innerText = '🔇 Mic idle';
+                inp.style.borderColor = '';
+                inp.style.boxShadow = '';
+                inp.placeholder = 'Type or speak a command...';
+            }
+        }
+
+        function _pollVoiceStatus() {
+            fetch('/api/voice_status')
+            .then(res => res.json())
+            .then(data => {
+                // Update backend label
+                const be  = document.getElementById('mic-backend');
+                const inp = document.getElementById('cmd-input');
+                if (be && data.backend) be.innerText = `[${data.backend}]`;
+
+                // Stream partial transcript live into the command input box
+                const partial = (data.partial || '').trim();
+                if (partial) {
+                    inp.value = partial;
+                    inp.dataset.fromMic = '1';
+                }
+
+                // On final transcript: show heard phrase + response (matches text command format)
+                if (data.last_transcript) {
+                    const stored = inp.dataset.lastVoice || '';
+                    if (data.last_transcript !== stored) {
+                        inp.dataset.lastVoice  = data.last_transcript;
+                        inp.value              = data.last_transcript;
+                        inp.dataset.fromMic    = '1';
+                        const action = data.last_action || '';
+                        // Line 1: what mic heard
+                        appendLog(`🎤 Voice Cmd: "${data.last_transcript}"`);
+                        // Line 2: same format as text command response
+                        if (action) appendLog(`Response: ${action}`);
+                        // Clear box after 2s
+                        setTimeout(() => {
+                            if (inp.dataset.fromMic === '1') {
+                                inp.value = '';
+                                inp.dataset.fromMic = '0';
+                            }
+                        }, 2000);
+                    }
+                }
+
+                // Sync state if engine stopped externally
+                if (!data.listening && _micListening) {
+                    _micListening = false;
+                    _applyMicState(false);
+                    clearInterval(_micPollTimer);
+                    _micPollTimer = null;
+                }
+            })
+            .catch(() => {});
+        }
+
+        // Initialise mic backend label on page load
+        fetch('/api/voice_status')
+            .then(r => r.json())
+            .then(d => {
+                const be = document.getElementById('mic-backend');
+                if (be && d.backend) be.innerText = `[${d.backend}]`;
+            })
+            .catch(() => {});
 
         // Poll Telemetry & Hardware Health
         setInterval(() => {

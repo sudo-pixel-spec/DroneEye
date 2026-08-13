@@ -1,0 +1,67 @@
+# =============================================================================
+# DroneEye — Hexacopter GCS Companion Computer
+# Requirements for Raspberry Pi 5 (Python 3.11+)
+# =============================================================================
+# Install: pip install -r requirements.txt
+#
+# For RPi-specific packages (picamera2, pymavlink serial), see notes below.
+# =============================================================================
+
+# --- Core Vision ---
+opencv-python-headless>=4.8.0   # headless = no Qt/GUI, lighter on RPi
+numpy>=1.24.0
+
+# --- Object Detection (YOLO11n INT8 inference) ---
+onnxruntime>=1.17.0             # RPi: use onnxruntime (CPU); NOT onnxruntime-gpu
+
+# --- OCR (TesserAct text reading on detections) ---
+pytesseract>=0.3.10
+# System dep (RPi/Debian): sudo apt install tesseract-ocr -y
+
+# --- Web GCS Server ---
+flask>=3.0.0
+
+# --- MAVLink Flight Controller ---
+pymavlink>=2.4.41
+pyserial>=3.5                   # Serial comms to Pixhawk over /dev/ttyAMA0
+
+# --- System Health (CPU temp, RAM, load) ---
+psutil>=5.9.0
+
+# =============================================================================
+# VOICE RECOGNITION  (offline, optimised for RPi 5)
+# =============================================================================
+
+# Primary: Vosk offline STT (~40MB model, <5% CPU on RPi 5)
+vosk>=0.3.45
+sounddevice>=0.4.6              # Low-latency audio I/O (replaces PyAudio)
+
+# Fallback: Google STT (requires internet — dev/desktop use only)
+SpeechRecognition>=3.10.0
+
+# =============================================================================
+# CAMERA  (Raspberry Pi Camera Module v2/v3)
+# =============================================================================
+# picamera2 is installed via apt on RPi OS, NOT pip:
+#   sudo apt install -y python3-picamera2
+#
+# For dev/desktop (V4L2 fallback via OpenCV), no extra package needed.
+
+# =============================================================================
+# RPi 5 INSTALL NOTES
+# =============================================================================
+# 1. System packages first:
+#      sudo apt update
+#      sudo apt install -y python3-picamera2 tesseract-ocr \
+#                          libportaudio2 libsndfile1
+#
+# 2. Python packages:
+#      pip install -r requirements.txt
+#
+# 3. Vosk model (one-time, ~40MB):
+#      cd DroneEye/
+#      wget https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
+#      unzip vosk-model-small-en-us-0.15.zip -d models/
+#
+# 4. Thread/CPU limits are set in config.py (OMP/MKL=2, ONNX threads=2)
+#    Do NOT override these — they are tuned for RPi 5 stability.

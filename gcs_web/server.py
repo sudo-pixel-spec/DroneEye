@@ -76,6 +76,21 @@ def create_app(mission_engine=None):
             return jsonify({"status": "ok", "message": f"Voice Action: {res.get('action')}", "details": res})
         return jsonify({"status": "ok", "message": "Voice phrase logged (Engine Standby)"})
 
+    @app.route("/api/voice_toggle", methods=["POST"])
+    def api_voice_toggle():
+        """Toggle microphone listening on/off. Returns new state."""
+        if mission_engine and hasattr(mission_engine, "voice_engine"):
+            active = mission_engine.voice_engine.toggle_listening()
+            return jsonify({"status": "ok", "listening": active})
+        return jsonify({"status": "error", "message": "Voice engine unavailable"}), 503
+
+    @app.route("/api/voice_status")
+    def api_voice_status():
+        """Polled by the UI for live partial transcript and listening state."""
+        if mission_engine and hasattr(mission_engine, "voice_engine"):
+            return jsonify(mission_engine.voice_engine.get_status())
+        return jsonify({"listening": False, "partial": "", "last_transcript": "", "backend": "unavailable"})
+
     return app
 
 def run_web_server(mission_engine=None, host=None, port=None):
