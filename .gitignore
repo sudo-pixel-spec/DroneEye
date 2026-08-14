@@ -29,8 +29,7 @@ models/*.pt
 models/*.tflite
 
 # Vosk voice model (large folder — download separately)
-models/vosk-model*/
-models/*.zip
+
 
 # Keep models directory tracked (empty placeholder)
 !models/.gitkeep
