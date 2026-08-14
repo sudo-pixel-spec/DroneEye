@@ -2,7 +2,6 @@ import time
 import threading
 import logging
 import cv2
-import numpy as np
 from config import CAMERA_CONFIG
 
 logger = logging.getLogger(__name__)
@@ -22,8 +21,7 @@ class CameraStream:
         
         self.cap = None
         self.picam2 = None
-        self.mode = "simulated"
-        self._sim_t = 0.0  # always init — defensive, used only in simulated mode
+        self.mode = "none"  # set to 'picamera2' or 'v4l2' on successful init
         
         self._init_camera()
 
@@ -78,14 +76,13 @@ class CameraStream:
             fail_reasons.append(f"v4l2: {e}")
             logger.warning(f"V4L2 VideoCapture failed: {e}")
 
-        # All real backends failed — use simulated mode
-        logger.warning(
-            "[Camera] All real camera backends failed — running in SIMULATED mode.\n"
+        # All real backends failed
+        logger.error(
+            "[Camera] No camera available — stream will produce no frames.\n"
             + "\n".join(f"  • {r}" for r in fail_reasons)
             + "\n  Fix: check 'use_picamera2' and 'v4l2_device' in config.py"
         )
-        self.mode = "simulated"
-        self._sim_t = 0.0
+        self.mode = "none"
 
     def start(self):
         if self.running:
@@ -133,39 +130,13 @@ class CameraStream:
                 if ret and frame is not None:
                     return frame
                 logger.warning("[Camera] V4L2 read returned empty frame — skipping")
-                return None  # never fall through to simulated
+                return None
             except Exception as e:
                 logger.error(f"[Camera] V4L2 read error: {e}")
                 return None
 
-        # Only reach here in explicit simulated mode
-        return self._generate_simulated_frame()
-
-    def _generate_simulated_frame(self):
-        self._sim_t += 0.05
-        frame = np.full((self.height, self.width, 3), (45, 90, 45), dtype=np.uint8)
-        
-        cv2.ellipse(frame, (int(self.width * 0.75), int(self.height * 0.35)),
-                    (110, 70), 30, 0, 360, (180, 110, 30), -1)
-        cv2.putText(frame, "LAKE (WATER BODY)", (int(self.width * 0.65), int(self.height * 0.2)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-
-        px = int(self.width * 0.3 + 120 * np.sin(self._sim_t * 0.8))
-        py = int(self.height * 0.5 + 60 * np.cos(self._sim_t * 0.8))
-        cv2.circle(frame, (px, py), 12, (200, 200, 200), -1)
-        cv2.circle(frame, (px, py - 4), 6, (120, 150, 220), -1)
-        cv2.putText(frame, "Person", (px - 20, py - 18), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-
-        rx = int(self.width * 0.5 + 40 * np.cos(self._sim_t * 0.5))
-        ry = int(self.height * 0.7 + 30 * np.sin(self._sim_t * 0.5))
-        cv2.rectangle(frame, (rx - 8, ry - 14), (rx + 8, ry + 14), (20, 20, 220), -1)
-        cv2.rectangle(frame, (rx - 4, ry - 18), (rx + 4, ry - 14), (200, 200, 200), -1)
-        cv2.putText(frame, "Red Bottle", (rx - 25, ry - 22), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
-
-        cx, cy = self.width // 2, self.height // 2
-        cv2.drawMarker(frame, (cx, cy), (0, 255, 255), cv2.MARKER_CROSS, 20, 1)
-
-        return frame
+        # mode == "none" — no camera initialized
+        return None
 
     def read(self):
         with self.lock:
