@@ -23,10 +23,13 @@ class CameraStream:
         self.cap = None
         self.picam2 = None
         self.mode = "simulated"
+        self._sim_t = 0.0  # always init — defensive, used only in simulated mode
         
         self._init_camera()
 
     def _init_camera(self):
+        fail_reasons = []
+
         if self.use_picamera2:
             try:
                 from picamera2 import Picamera2
@@ -46,10 +49,12 @@ class CameraStream:
                         logger.debug(f"Auto-Focus control set failed (non-AF hardware): {af_err}")
 
                 self.picam2.start()
+                time.sleep(0.2)  # sensor warmup — avoids None frames on first capture
                 self.mode = "picamera2"
                 logger.info(f"Picamera2 started successfully in 720p HD mode ({self.width}x{self.height}).")
                 return
             except Exception as e:
+                fail_reasons.append(f"picamera2: {e}")
                 logger.warning(f"Picamera2 initialization failed: {e}. Falling back to V4L2 OpenCV.")
 
         try:
@@ -65,10 +70,20 @@ class CameraStream:
                     self.mode = "v4l2"
                     logger.info(f"OpenCV V4L2 Camera initialized on /dev/video{device_idx} ({self.width}x{self.height})")
                     return
+                else:
+                    fail_reasons.append(f"v4l2 /dev/video{device_idx}: opened but first read failed")
+            else:
+                fail_reasons.append(f"v4l2 /dev/video{device_idx}: could not open device")
         except Exception as e:
+            fail_reasons.append(f"v4l2: {e}")
             logger.warning(f"V4L2 VideoCapture failed: {e}")
 
-        logger.info("Operating in Synthetic Test Camera Mode (Simulated Sky-High Flight Feed).")
+        # All real backends failed — use simulated mode
+        logger.warning(
+            "[Camera] All real camera backends failed — running in SIMULATED mode.\n"
+            + "\n".join(f"  • {r}" for r in fail_reasons)
+            + "\n  Fix: check 'use_picamera2' and 'v4l2_device' in config.py"
+        )
         self.mode = "simulated"
         self._sim_t = 0.0
 
@@ -98,29 +113,32 @@ class CameraStream:
         if self.mode == "picamera2":
             try:
                 array = self.picam2.capture_array()
-                if array is not None:
-                    if len(array.shape) == 3:
-                        if array.shape[2] == 4:
-                            bgr = array[:, :, :3].copy()
-                        else:
-                            bgr = array.copy()
-                    else:
-                        bgr = array.copy()
-                    
-                    if self.config.get("swap_bgr", False):
-                        bgr = cv2.cvtColor(bgr, cv2.COLOR_RGB2BGR)
-                    return bgr
+                if array is None:
+                    logger.warning("[Camera] Picamera2 returned None — skipping frame")
+                    return None
+                if len(array.shape) == 3:
+                    bgr = array[:, :, :3].copy() if array.shape[2] == 4 else array.copy()
+                else:
+                    bgr = array.copy()
+                if self.config.get("swap_bgr", False):
+                    bgr = cv2.cvtColor(bgr, cv2.COLOR_RGB2BGR)
+                return bgr
             except Exception as e:
-                logger.error(f"Picamera2 capture error: {e}")
-        
+                logger.error(f"[Camera] Picamera2 capture error: {e}")
+                return None  # never fall through to simulated
+
         elif self.mode == "v4l2":
             try:
                 ret, frame = self.cap.read()
                 if ret and frame is not None:
                     return frame
+                logger.warning("[Camera] V4L2 read returned empty frame — skipping")
+                return None  # never fall through to simulated
             except Exception as e:
-                logger.error(f"V4L2 read error: {e}")
+                logger.error(f"[Camera] V4L2 read error: {e}")
+                return None
 
+        # Only reach here in explicit simulated mode
         return self._generate_simulated_frame()
 
     def _generate_simulated_frame(self):
